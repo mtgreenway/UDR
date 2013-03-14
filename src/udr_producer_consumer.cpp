@@ -34,8 +34,9 @@ void* run_threaded_cryption(crypto *crypt, int fd, UDTSOCKET * udt_socket,
     context.udt_socket = udt_socket;
     context.crypt = crypt;
 
-    context.writable = context.data;
-    context.readable = context.data + max_block_size;
+    context.swap_data = context.data;
+    context.writable = context.data + max_block_size;
+    context.readable = context.data + max_block_size * 2;
 
     pthread_cond_init(context.producer_wait, NULL);
     pthread_cond_init(context.consumer_wait, NULL);
@@ -77,8 +78,6 @@ void buffer_swap(ProducerConsumerContext *context)
 
 void* encrypt_thread(void* _context)
 {
-    char indata[max_block_size];
-
     int bytes_read;
 
     struct ProducerConsumerContext* context =
@@ -87,7 +86,7 @@ void* encrypt_thread(void* _context)
     int fd = context->fd;
 
     while (true) {
-        bytes_read = read(fd, indata, max_block_size);
+        bytes_read = read(fd, context->swap_data, max_block_size);
 
         // we don't do anything about the error?
         if(bytes_read <= 0){
@@ -98,7 +97,7 @@ void* encrypt_thread(void* _context)
             return NULL;
         }
 
-        context->crypt->encrypt(indata, context->writable, bytes_read);
+        context->crypt->encrypt(context->swap_data, context->writable, bytes_read);
 
         context->bytes_read = bytes_read;
 
@@ -189,7 +188,6 @@ void* decrypt_thread(void* _context)
 
     context->ready_to_write = false;
     while (true) {
-        char outdata[max_block_size];
 
         pthread_mutex_lock(context->mutex);
         while(!context->ready_to_write)
@@ -209,9 +207,9 @@ void* decrypt_thread(void* _context)
         context->ready_to_read = true;
         pthread_cond_signal(context->producer_wait);
 
-        context->crypt->encrypt(context->readable, outdata, bytes_read);
+        context->crypt->encrypt(context->readable, context->swap_data, bytes_read);
 
-        int written_bytes = write(context->fd, outdata, bytes_read);
+        int written_bytes = write(context->fd, context->swap_data, bytes_read);
     }
 }
 

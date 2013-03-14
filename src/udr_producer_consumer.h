@@ -31,7 +31,8 @@ struct ProducerConsumerContext{
     bool ready_to_write;
 
     // data buffer
-    char data[2 * max_block_size];
+    char data[3 * max_block_size];
+    char * swap_data;
     char * readable;
     char * writable;
     //char read_data[max_block_size];
